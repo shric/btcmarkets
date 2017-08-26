@@ -64,13 +64,13 @@ func main() {
 		item := itr.Item()
 		key := item.Key()
 		fields := strings.Fields(string(key))
-		tid, err := strconv.Atoi(fields[1])
+		tid, err := strconv.Atoi(fields[2])
 		if err != nil {
 			panic(err)
 		}
 		if tid > max_tid {
 			max_tid = tid
-			t, err := strconv.ParseInt(fields[0], 10, 64)
+			t, err := strconv.ParseInt(fields[1], 10, 64)
 			if err != nil {
 				panic(err)
 			}
@@ -80,10 +80,13 @@ func main() {
 	}
 
 	if key_count != 0 {
-		log.Printf("Found %d previously logged trades, latest at %s.\n", key_count, max_date)
+		log.Printf("Found %d previously logged trades, latest at %s.\n",
+			key_count, max_date)
 	}
+	trading_pair := "BTC/AUD"
 	for !done {
-		url := fmt.Sprintf("https://api.btcmarkets.net/market/BTC/AUD/trades?since=%d", max_tid)
+		url := fmt.Sprintf("https://api.btcmarkets.net/market/%s/trades?since=%d",
+			trading_pair, max_tid)
 		resp, err := http.Get(url)
 		if err != nil {
 			panic(err)
@@ -103,7 +106,8 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				err = kv.Set([]byte(fmt.Sprintf("%d %d", trade.Date, trade.Tid)), data, 0x00)
+				err = kv.Set([]byte(fmt.Sprintf("%s %d %d",
+					trading_pair, trade.Date, trade.Tid)), data, 0x00)
 				if err != nil {
 					panic(err)
 				}
