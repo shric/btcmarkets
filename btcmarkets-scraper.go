@@ -87,9 +87,15 @@ func main() {
 	for !done {
 		url := fmt.Sprintf("https://api.btcmarkets.net/market/%s/trades?since=%d",
 			trading_pair, max_tid)
-		resp, err := http.Get(url)
+		timeout := time.Duration(5 * time.Second)
+		client := http.Client{
+			Timeout: timeout,
+		}
+		resp, err := client.Get(url)
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			time.Sleep(time.Second)
+			continue
 		}
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
