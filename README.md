@@ -13,7 +13,7 @@ left off.
 - Ensure you have a correct GOPATH environment variable (points to where you install Go libraries for go get below).
 - $ go get github.com/dgraph-io/badger
 - $ mkdir /path/to/kv/directory
-- $ go run btcmarkets-scraper.go /path/to/kv/directory
+- $ go run main/btcmarkets-scraper.go /path/to/kv/directory
 
 
 
