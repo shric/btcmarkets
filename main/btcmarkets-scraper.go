@@ -57,7 +57,8 @@ func main() {
 		FetchValues:  false,
 		Reverse:      false,
 	})
-	max_tid := 0
+	var max_tids map[string]int
+	max_tids = make(map[string]int)
 	key_count := 0
 	max_date := ""
 	for itr.Rewind(); itr.Valid(); itr.Next() {
@@ -65,11 +66,12 @@ func main() {
 		key := item.Key()
 		fields := strings.Fields(string(key))
 		tid, err := strconv.Atoi(fields[2])
+		trading_pair := fields[0]
 		if err != nil {
 			panic(err)
 		}
-		if tid > max_tid {
-			max_tid = tid
+		if tid > max_tids[trading_pair] {
+			max_tids[trading_pair] = tid
 			t, err := strconv.ParseInt(fields[1], 10, 64)
 			if err != nil {
 				panic(err)
@@ -83,45 +85,53 @@ func main() {
 		log.Printf("Found %d previously logged trades, latest at %s.\n",
 			key_count, max_date)
 	}
-	trading_pair := "BTC/AUD"
+	trading_pairs := []string{
+		"BTC/AUD", "LTC/AUD", "ETH/AUD", "ETC/AUD", "XRP/AUD", "BCH/AUD",
+		"LTC/BTC", "ETH/BTC", "ETC/BTC", "XRP/BTC", "BCH/BTC"}
 	for !done {
-		url := fmt.Sprintf("https://api.btcmarkets.net/market/%s/trades?since=%d",
-			trading_pair, max_tid)
-		timeout := time.Duration(5 * time.Second)
-		client := http.Client{
-			Timeout: timeout,
-		}
-		resp, err := client.Get(url)
-		if err != nil {
-			log.Println(err)
-			time.Sleep(time.Second)
-			continue
-		}
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		var t Trades
-		err = json.Unmarshal(body, &t)
-		if err != nil {
-			panic(err)
-		}
+		for _, trading_pair := range trading_pairs {
+			url := fmt.Sprintf("https://api.btcmarkets.net/market/%s/trades?since=%d",
+				trading_pair, max_tids[trading_pair])
+			timeout := time.Duration(5 * time.Second)
+			client := http.Client{
+				Timeout: timeout,
+			}
+			resp, err := client.Get(url)
+			if err != nil {
+				log.Println(err)
+				time.Sleep(time.Second)
+				continue
+			}
+			defer resp.Body.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			var t Trades
+			err = json.Unmarshal(body, &t)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
 
-		if len(t) > 0 {
-			log.Printf("Processing %d trade(s)\n", len(t))
-			for _, trade := range t {
-				data, err := json.Marshal(trade)
-				if err != nil {
-					panic(err)
-				}
-				err = kv.Set([]byte(fmt.Sprintf("%s %d %d",
-					trading_pair, trade.Date, trade.Tid)), data, 0x00)
-				if err != nil {
-					panic(err)
-				}
-				if trade.Tid > max_tid {
-					max_tid = trade.Tid
+			if len(t) > 0 {
+				log.Printf("%s: Processing %d trade(s)\n", trading_pair, len(t))
+				for _, trade := range t {
+					data, err := json.Marshal(trade)
+					if err != nil {
+						panic(err)
+					}
+					err = kv.Set([]byte(fmt.Sprintf("%s %d %d",
+						trading_pair, trade.Date, trade.Tid)), data, 0x00)
+					if err != nil {
+						panic(err)
+					}
+					if trade.Tid > max_tids[trading_pair] {
+						max_tids[trading_pair] = trade.Tid
+					}
 				}
 			}
+			time.Sleep(500 * time.Millisecond)
+			if done {
+				break
+			}
 		}
-		time.Sleep(time.Second)
 	}
 }
