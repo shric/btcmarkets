@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dgraph-io/badger"
+	bb "github.com/shric/btcmarkets/badger"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -41,50 +42,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Open existing badger key-value store, or create if it doesn't exist.
-	opts := badger.DefaultOptions
-	opts.Dir = os.Args[1]
-	opts.ValueDir = os.Args[1]
-	kv, err := badger.NewKV(&opts)
-	if err != nil {
-		panic(err)
-	}
+	kv := bb.OpenBadger(os.Args[1])
 	defer kv.Close()
 
-	// Count existing items, find latest trade id.
-	itr := kv.NewIterator(badger.IteratorOptions{
-		PrefetchSize: 100,
-		FetchValues:  false,
-		Reverse:      false,
-	})
-	var max_tids map[string]int
-	max_tids = make(map[string]int)
-	key_count := 0
-	max_date := ""
-	for itr.Rewind(); itr.Valid(); itr.Next() {
-		item := itr.Item()
-		key := item.Key()
-		fields := strings.Fields(string(key))
-		tid, err := strconv.Atoi(fields[2])
-		trading_pair := fields[0]
-		if err != nil {
-			panic(err)
-		}
-		if tid > max_tids[trading_pair] {
-			max_tids[trading_pair] = tid
-			t, err := strconv.ParseInt(fields[1], 10, 64)
-			if err != nil {
-				panic(err)
-			}
-			max_date = fmt.Sprintf("%v", (time.Unix(t, 0)))
-		}
-		key_count++
-	}
+	max_tids := getMaxTids(kv)
 
-	if key_count != 0 {
-		log.Printf("Found %d previously logged trades, latest at %s.\n",
-			key_count, max_date)
-	}
 	trading_pairs := []string{
 		"BTC/AUD", "LTC/AUD", "ETH/AUD", "ETC/AUD", "XRP/AUD", "BCH/AUD",
 		"LTC/BTC", "ETH/BTC", "ETC/BTC", "XRP/BTC", "BCH/BTC"}
@@ -134,4 +96,42 @@ func main() {
 			}
 		}
 	}
+}
+
+func getMaxTids(kv *badger.KV) map[string]int {
+	// Count existing items, find latest trade id.
+	itr := kv.NewIterator(badger.IteratorOptions{
+		PrefetchSize: 100,
+		FetchValues:  false,
+		Reverse:      false,
+	})
+	var max_tids map[string]int
+	max_tids = make(map[string]int)
+	key_count := 0
+	max_date := ""
+	for itr.Rewind(); itr.Valid(); itr.Next() {
+		item := itr.Item()
+		key := item.Key()
+		fields := strings.Fields(string(key))
+		tid, err := strconv.Atoi(fields[2])
+		trading_pair := fields[0]
+		if err != nil {
+			panic(err)
+		}
+		if tid > max_tids[trading_pair] {
+			max_tids[trading_pair] = tid
+			t, err := strconv.ParseInt(fields[1], 10, 64)
+			if err != nil {
+				panic(err)
+			}
+			max_date = fmt.Sprintf("%v", (time.Unix(t, 0)))
+		}
+		key_count++
+	}
+
+	if key_count != 0 {
+		log.Printf("Found %d previously logged trades, latest at %s.\n",
+			key_count, max_date)
+	}
+	return max_tids
 }
